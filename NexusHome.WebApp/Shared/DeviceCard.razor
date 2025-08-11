@@ -1,0 +1,395 @@
+// Purpose: A reusable component to display a single device's status.
+
+<div class="device-card @GetDeviceTypeClass()">
+    <div class="card-header">
+        <span class="device-icon">@GetDeviceIcon()</span>
+        <h5 class="device-name">@Device.Name</h5>
+    </div>
+    <div class="card-body">
+        <p class="device-room">@Device.Room</p>
+        <p class="device-state">@Device.CurrentState @GetStateUnit()</p>
+    </div>
+    <div class="card-footer">
+        <small>Last Updated: @Device.LastUpdated.ToLocalTime().ToString("g")</small>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Device Device { get; set; } = new();
+
+    private string GetDeviceTypeClass() => Device.Type.ToString().ToLower();
+    private string GetStateUnit() => Device.Type == DeviceType.Thermostat ? "°C" : "";
+
+    private string GetDeviceIcon() => Device.Type switch
+    {
+        DeviceType.Light => "💡",
+        DeviceType.Thermostat => "🌡️",
+        DeviceType.MotionSensor => "🏃",
+        _ => "❓"
+    };
+}
+```css
+/* File: NexusHome.WebApp/wwwroot/css/app.css (add these styles to the end) */
+
+.device-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin: 1rem;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    background-color: #ffffff;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.device-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 12px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #f1f1f1;
+    padding: 1rem;
+}
+
+.device-icon {
+    font-size: 2rem;
+    margin-right: 1rem;
+    line-height: 1;
+}
+
+.device-name {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #343a40;
+}
+
+.card-body {
+    padding: 1rem;
+    flex-grow: 1;
+}
+
+.device-room {
+    font-style: italic;
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+}
+
+.device-state {
+    font-size: 1.75rem;
+    font-weight: 700;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+.light .device-state { color: #f0ad4e; }
+.thermostat .device-state { color: #d9534f; }
+.motionsensor .device-state { color: #5cb85c; }
+
+
+.card-footer {
+    padding: 0.75rem 1rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    margin-top: auto;
+    font-size: 0.8rem;
+    color: #6c757d;
+    text-align: center;
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+.dashboard-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* Rules Page Styles */
+.rules-table {
+    width: 100%;
+    margin-top: 2rem;
+    border-collapse: collapse;
+}
+
+.rules-table th, .rules-table td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.rules-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+}
+```csharp
+// File: NexusHome.WebApp/Pages/Index.razor
+// Purpose: The main dashboard page.
+
+@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Smart Home Dashboard</h1>
+<p class="text-muted">Displaying live data from your connected devices.</p>
+
+@if (devices == null)
+{
+    <p><em>Connecting to NexusHome service...</em></p>
+}
+else if (!devices.Any())
+{
+    <p><em>No devices found. Make sure the API and Device Simulator are running.</em></p>
+}
+else
+{
+    <div class="dashboard-container">
+        @foreach (var device in devices.Values.OrderBy(d => d.Room).ThenBy(d => d.Name))
+        {
+            <DeviceCard Device="device" />
+        }
+    </div>
+}
+
+@code {
+    private HubConnection? hubConnection;
+    private Dictionary<int, Device> devices = new();
+
+    // IMPORTANT: Update this URL to match the one your API is running on.
+    private const string ApiBaseUrl = "https://localhost:7123";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fetch initial state
+        try
+        {
+            var initialDevices = await Http.GetFromJsonAsync<List<Device>>($"{ApiBaseUrl}/api/devices");
+            if (initialDevices != null)
+            {
+                devices = initialDevices.ToDictionary(d => d.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching initial devices: {ex.Message}");
+        }
+
+        // Setup SignalR connection
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{ApiBaseUrl}/telemetryHub")
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<Device>("ReceiveDeviceUpdate", (updatedDevice) =>
+        {
+            if (devices.ContainsKey(updatedDevice.Id))
+            {
+                devices[updatedDevice.Id] = updatedDevice;
+                InvokeAsync(StateHasChanged); // Use InvokeAsync for thread safety
+            }
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+    // --- Model Definitions ---
+    public class Device
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public DeviceType Type { get; set; }
+        public string Room { get; set; } = "";
+        public string CurrentState { get; set; } = "";
+        public DateTime LastUpdated { get; set; }
+    }
+
+    public enum DeviceType { Light, Thermostat, MotionSensor }
+}
+```csharp
+// File: NexusHome.WebApp/Pages/Rules.razor
+// Purpose: Page for managing automation rules.
+
+@page "/rules"
+@inject HttpClient Http
+
+<PageTitle>Automation Rules</PageTitle>
+
+<h1>Automation Rules</h1>
+
+<h3>Create New Rule</h3>
+<div class="form-grid">
+    <div>
+        <label>Description</label>
+        <input class="form-control" @bind="newRule.Description" placeholder="e.g., Turn on light on motion" />
+    </div>
+    <div>
+        <label>IF Device</label>
+        <select class="form-control" @bind="newRule.TriggerDeviceId">
+            <option value="0">Select Device</option>
+            @foreach (var device in devices) { <option value="@device.Id">@device.Name</option> }
+        </select>
+    </div>
+    <div>
+        <label>Operator</label>
+        <select class="form-control" @bind="newRule.TriggerOperator">
+            @foreach (var op in Enum.GetValues(typeof(Operator))) { <option value="@op">@op</option> }
+        </select>
+    </div>
+    <div>
+        <label>Value</label>
+        <input class="form-control" @bind="newRule.TriggerValue" placeholder="e.g., true or 22" />
+    </div>
+    <div>
+        <label>THEN Device</label>
+        <select class="form-control" @bind="newRule.ActionDeviceId">
+            <option value="0">Select Device</option>
+            @foreach (var device in devices) { <option value="@device.Id">@device.Name</option> }
+        </select>
+    </div>
+    <div>
+        <label>Action</label>
+        <input class="form-control" @bind="newRule.ActionValue" placeholder="e.g., On or Off" />
+    </div>
+</div>
+<button class="btn btn-primary" @onclick="AddRule" disabled="@(!IsRuleValid())">Add Rule</button>
+
+<hr />
+
+<h3>Existing Rules</h3>
+@if (rules == null)
+{
+    <p><em>Loading rules...</em></p>
+}
+else
+{
+    <table class="rules-table">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Trigger</th>
+                <th>Action</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var rule in rules)
+            {
+                <tr>
+                    <td>@rule.Description</td>
+                    <td>IF <strong>@rule.TriggerDevice?.Name</strong> is @rule.TriggerOperator <strong>@rule.TriggerValue</strong></td>
+                    <td>THEN set <strong>@rule.ActionDevice?.Name</strong> to <strong>@rule.ActionValue</strong></td>
+                    <td><button class="btn btn-danger btn-sm" @onclick="() => DeleteRule(rule.Id)">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+@code {
+    private List<AutomationRule>? rules;
+    private List<Device> devices = new();
+    private AutomationRule newRule = new();
+    
+    // IMPORTANT: Update this URL to match the one your API is running on.
+    private const string ApiBaseUrl = "https://localhost:7123";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRules();
+        devices = await Http.GetFromJsonAsync<List<Device>>($"{ApiBaseUrl}/api/devices") ?? new();
+    }
+
+    private async Task LoadRules()
+    {
+        rules = await Http.GetFromJsonAsync<List<AutomationRule>>($"{ApiBaseUrl}/api/rules");
+    }
+
+    private async Task AddRule()
+    {
+        if (!IsRuleValid()) return;
+        await Http.PostAsJsonAsync($"{ApiBaseUrl}/api/rules", newRule);
+        newRule = new(); // Reset form
+        await LoadRules();
+    }
+
+    private async Task DeleteRule(int id)
+    {
+        await Http.DeleteAsync($"{ApiBaseUrl}/api/rules/{id}");
+        await LoadRules();
+    }
+
+    private bool IsRuleValid()
+    {
+        return newRule.TriggerDeviceId != 0 && 
+               newRule.ActionDeviceId != 0 && 
+               !string.IsNullOrWhiteSpace(newRule.Description) &&
+               !string.IsNullOrWhiteSpace(newRule.TriggerValue) &&
+               !string.IsNullOrWhiteSpace(newRule.ActionValue);
+    }
+
+    // --- Model Definitions ---
+    public class AutomationRule
+    {
+        public int Id { get; set; }
+        public string Description { get; set; } = "";
+        public int TriggerDeviceId { get; set; }
+        public Device? TriggerDevice { get; set; }
+        public string TriggerValue { get; set; } = "";
+        public Operator TriggerOperator { get; set; }
+        public int ActionDeviceId { get; set; }
+        public Device? ActionDevice { get; set; }
+        public string ActionValue { get; set; } = "";
+        public bool IsEnabled { get; set; } = true;
+    }
+
+    public class Device
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    public enum Operator { Equals, NotEquals, GreaterThan, LessThan }
+}
+```csharp
+// File: NexusHome.WebApp/Program.cs
+// Purpose: Entry point for the Blazor app.
+
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+
+// The HttpClient is already registered by default.
+// No need to configure the base address here since we are calling a different origin (the API).
+builder.Services.AddScoped(sp => new HttpClient());
+
+await builder.Build().RunAsync();
