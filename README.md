@@ -1,29 +1,223 @@
-# NexusHome IoT Smart Home Energy Management System v2.0
+# NexusHome IoT: Smart Home Energy Management System v2.0
 
-ðŸ¡ **Advanced Smart Home Energy Management with AI-Powered IoT Integration**
+**An advanced smart home energy management system with AI-powered IoT integration.**
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![.NET Version](https://img.shields.io/badge/.NET-8.0-purple.svg)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![Version](https://img.shields.io/badge/version-2.0.0-orange.svg)
 
-## ðŸŒŸ Overview
+---
+
+## 📋 Table of Contents
+
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Architecture](#️-architecture-overview)
+- [Technology Stack](#-technology-stack)
+- [Prerequisites](#-prerequisites)
+- [Installation & Setup](#️-installation--setup)
+- [Configuration Guide](#-configuration-guide)
+- [Device Integration](#-device-integration)
+- [AI & Machine Learning](#-ai--machine-learning-features)
+- [API Documentation](#-api-documentation)
+- [Deployment](#-deployment)
+- [Performance & Security](#-performance--security)
+- [Testing & Monitoring](#-testing--monitoring)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Support & Documentation](#-support--documentation)
+- [Roadmap](#️-roadmap)
+- [Contact](#-contact)
+
+---
+
+## 🌟 Overview
 
 NexusHome is a comprehensive smart home energy management system that combines cutting-edge IoT technology with artificial intelligence to optimize energy consumption, reduce costs, and provide predictive maintenance capabilities. Built with .NET 8 and modern cloud-native technologies, it supports the latest smart home protocols including Matter, MQTT, and Azure IoT Hub integration.
 
-### ðŸŽ¯ Key Features
+---
 
-#### ðŸ”‹ **Energy Management & Optimization**
-- **Real-time Energy Monitoring**: Track consumption across all connected devices
-- **AI-Powered Cost Optimization**: Automatically reduce energy costs by 15-30%
-- **Load Shifting**: Move energy-intensive tasks to off-peak hours
-- **Peak Shaving**: Reduce demand charges through intelligent load management
-- **Solar Panel Integration**: Maximize solar energy utilization and storage optimization
-- **Battery Management**: Smart charging/discharging cycles for energy storage systems
+## 🎯 Key Features
 
-#### ðŸ¤– **Artificial Intelligence & Predictive Analytics**
-- **Predictive Maintenance**: ML models predict equipment failures with 90%+ accuracy
-- **Anomaly Detection**: Real-time identification of unusual energy patterns
+#### Energy Management & Optimization
+- **Real-time Energy Monitoring**: Track consumption across all connected devices.
+- **AI-Powered Cost Optimization**: Automatically reduce energy costs by 15-30%.
+- **Load Shifting & Peak Shaving**: Move tasks to off-peak hours and reduce demand charges.
+- **Solar & Battery Integration**: Maximize solar energy use and optimize storage cycles.
+
+#### Artificial Intelligence & Predictive Analytics
+- **Predictive Maintenance**: ML models predict equipment failures with over 90% accuracy.
+- **Anomaly Detection**: Real-time identification of unusual energy patterns.
+- **Energy Demand Forecasting**: Predict energy consumption up to 7 days in advance.
+- **Automated Rule Learning**: The system learns and adapts to user behaviors.
+
+#### IoT Device Management
+- **Universal Compatibility**: Native support for Matter, MQTT, WiFi, Zigbee, Z-Wave, and more.
+- **Cloud Integration**: Enterprise-grade connectivity with Azure IoT Hub.
+- **Device Health Monitoring**: Continuously monitor the status and performance of all devices.
+
+#### Advanced Analytics & Reporting
+- **Real-time Dashboards**: Live visualization of energy consumption.
+- **Historical Analysis**: Detailed usage patterns and trend analysis.
+- **Cost & Environmental Tracking**: Monitor energy costs, savings, and carbon footprint.
+
+---
+
+## 🏗️ Architecture Overview
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│                        NexusHome IoT System                      │
+├──────────────────────────────────────────────────────────────────┤
+│  Frontend Layer                                                  │
+│  ├─ Web Dashboard (Blazor/React)                                  │
+│  ├─ Mobile App (MAUI)                                             │
+│  └─ REST APIs                                                     │
+├──────────────────────────────────────────────────────────────────┤
+│  Application Layer (.NET 8)                                      │
+│  ├─ Energy Optimization Service                                   │
+│  ├─ Predictive Maintenance Service                                │
+│  ├─ Device Management Service                                     │
+│  └─ Protocol Services (MQTT, Matter)                              │
+├──────────────────────────────────────────────────────────────────┤
+│  AI/ML Layer                                                     │
+│  ├─ ML.NET Models                                                 │
+│  ├─ Azure Machine Learning                                        │
+│  └─ Time Series Forecasting & Anomaly Detection                   │
+├──────────────────────────────────────────────────────────────────┤
+│  Data Layer                                                      │
+│  ├─ SQL Server (Operational Data)                                 │
+│  ├─ Azure Cosmos DB (IoT Data)                                    │
+│  ├─ Redis (Caching)                                               │
+│  └─ Azure Blob Storage (ML Models)                                │
+├──────────────────────────────────────────────────────────────────┤
+│  IoT Communication Layer                                         │
+│  ├─ Azure IoT Hub                                                 │
+│  ├─ MQTT Broker                                                   │
+│  └─ Device Protocols (Matter, Modbus, etc.)                       │
+└──────────────────────────────────────────────────────────────────┘
+
+🛠️ Technology Stack
+ * Backend: .NET 8, ASP.NET Core, Entity Framework Core, SignalR
+ * IoT & Communication: Azure IoT Hub, MQTT, Matter Protocol, System.Device.Gpio
+ * AI & Machine Learning: ML.NET, Time Series Analysis, Anomaly Detection, AutoML
+ * Database & Storage: SQL Server, Azure Cosmos DB, Redis, Azure Blob Storage
+ * Cloud & DevOps: Azure Services, Docker, Kubernetes, Application Insights
+📚 Prerequisites
+ * .NET 8 SDK or later
+ * Visual Studio 2022 or VS Code
+ * SQL Server (LocalDB, Express, or Full)
+ * Azure Subscription (for cloud services)
+ * MQTT Broker (e.g., Mosquitto)
+ * Node.js (for frontend build tools)
+⚙️ Installation & Setup
+ * Clone the Repository
+   git clone [https://github.com/your-username/nexushome-iot.git](https://github.com/your-username/nexushome-iot.git)
+cd nexushome-iot
+
+ * Configure Application Settings
+   Copy appsettings.json to appsettings.Development.json and update it with your connection strings and keys.
+   {
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=NexusHomeDb;Trusted_Connection=true;",
+    "IoTHub": "HostName=your-iothub.azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=YOUR_KEY"
+  },
+  "MQTT": {
+    "BrokerHost": "localhost",
+    "BrokerPort": 1883
+  }
+}
+
+ * Install Dependencies & Set Up Database
+   dotnet restore
+dotnet ef database update
+
+ * Run the Application
+   dotnet run
+
+   The API will be available at https://localhost:7001 with Swagger UI at /swagger.
+🔧 Configuration Guide
+ * Azure IoT Hub: Create an IoT Hub in the Azure Portal and update the connection string.
+ * MQTT Broker: Install and run a broker like Mosquitto.
+ * Matter Protocol: Ensure your Thread/WiFi network is configured and set up Matter fabric credentials.
+ * Machine Learning Models: Pre-trained models are included for forecasting, maintenance, and anomaly detection. They are loaded automatically on startup.
+🔌 Device Integration
+The system supports a wide range of devices, including smart thermostats, lights, energy meters, solar inverters, and EV chargers.
+Adding a Matter Device
+POST /api/devices/matter/commission
+{
+  "setupCode": "12345678901",
+  "discriminator": "3840"
+}
+
+Adding an MQTT Device
+POST /api/devices
+{
+  "deviceId": "DEVICE_001",
+  "name": "Living Room Light",
+  "type": "SmartLight",
+  "protocol": "MQTT"
+}
+
+🤖 AI & Machine Learning Features
+ * Predictive Maintenance: Analyzes device performance to predict failures 7-30 days in advance and generate maintenance recommendations.
+ * Energy Optimization: Uses real-time load optimization, cost-based scheduling, and solar generation forecasting to reduce energy costs.
+ * Anomaly Detection: Detects unusual energy consumption patterns to identify potential issues and send real-time alerts.
+📖 API Documentation
+The API is documented using Swagger/OpenAPI, available at /swagger when the application is running.
+Core Endpoints
+ * Energy: GET /api/energy/dashboard, GET /api/energy/forecast
+ * Devices: GET /api/devices, POST /api/devices, POST /api/devices/{id}/command
+ * Maintenance: GET /api/maintenance/predictions, POST /api/maintenance/anomaly-detection/{deviceId}
+Real-time Communication
+WebSocket endpoints are available for real-time data streaming:
+ * /energyHub: Real-time energy data
+ * /deviceHub: Device status updates
+ * /notificationHub: System notifications
+🚀 Deployment
+Docker
+Build the Docker image and run it using Docker Compose for a complete local environment including a database and MQTT broker.
+ * Build Image: docker build -t nexushome-iot:latest .
+ * Run: docker-compose up -d
+Cloud
+Deploy to Azure using Container Instances or App Service for a scalable, production-ready environment.
+📈 Performance & Security
+ * Performance: Designed for high throughput, with API responses under 100ms and processing over 10,000 IoT messages per second.
+ * Scalability: Horizontally scalable using load balancers, Redis caching, and queue-based background processing.
+ * Security: Features JWT-based authentication, role-based access control (RBAC), end-to-end encryption for IoT communication, and data encryption at rest.
+🧪 Testing & Monitoring
+ * Testing: The solution includes comprehensive unit and integration tests. Run them with dotnet test.
+ * Monitoring: Integrated with Application Insights for real-time application monitoring, performance tracking, and exception alerting. Structured logging is implemented using Serilog.
+🤝 Contributing
+We welcome contributions! Please see our Contributing Guidelines for details on how to set up your development environment and submit pull requests.
+📜 License
+This project is licensed under the MIT License. See the LICENSE file for details.
+💬 Support & Documentation
+ * Project Wiki
+ * API Reference
+ * Report an Issue
+ * Start a Discussion
+🗺️ Roadmap
+Version 2.1 (Q2 2025)
+ * [ ] Enhanced mobile app with offline capabilities
+ * [ ] Integration with more renewable energy systems
+ * [ ] Advanced machine learning model marketplace
+Version 2.2 (Q3 2025)
+ * [ ] Blockchain-based energy trading
+ * [ ] Advanced weather integration
+ * [ ] Community energy sharing features
+Version 3.0 (Q4 2025)
+ * [ ] Edge computing support
+ * [ ] Quantum-resistant security
+ * [ ] Global smart grid integration
+📫 Contact
+ * Website: nexushome.io
+ * Email: info@nexushome.io
+ * Twitter: @NexusHomeIoT
+Built with ❤️ by the NexusHome Team
+Making smart homes smarter, one device at a time.
+
 - **Energy Demand Forecasting**: 7-day energy consumption predictions
 - **Comfort Optimization**: Balance energy efficiency with user comfort preferences
 - **Automated Rule Learning**: System learns and adapts to user behaviors
