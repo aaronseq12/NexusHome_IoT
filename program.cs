@@ -1,51 +1,56 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Azure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using NexusHome.Data;
-using NexusHome.Services;
-using NexusHome.IoT;
-using NexusHome.AI;
-using NexusHome.Energy;
+using NexusHome.IoT.Data;
+using NexusHome.IoT.Services;
+using NexusHome.IoT.AI;
+using NexusHome.IoT.Energy;
 using Microsoft.ML;
 using Azure.Identity;
-using Azure.IoT.DeviceProvisioning.Service;
-using MQTTnet.AspNetCore;
+using Microsoft.Azure.Devices.Provisioning.Service;
 using Serilog;
 using Microsoft.OpenApi.Models;
+using NexusHome.IoT.Hubs;
+using NexusHome.IoT.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
+// Configure Serilog for structured logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console()
-    .WriteTo.File("logs/nexushome-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.File("logs/nexushome-.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
     .CreateLogger();
 
 builder.Host.UseSerilog();
 
-// Add services to the container
+// --- Service Configuration ---
+
+// 1. Database Context
 builder.Services.AddDbContext<NexusHomeDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Azure IoT Hub and Device Provisioning Service
+// 2. Azure IoT Services
 builder.Services.AddAzureClients(clientBuilder =>
 {
-    clientBuilder.AddServiceBusClient(builder.Configuration.GetConnectionString("ServiceBus"));
     clientBuilder.UseCredential(new DefaultAzureCredential());
 });
 
-// Add IoT Hub connection
 builder.Services.AddSingleton(provider =>
 {
     var connectionString = builder.Configuration.GetConnectionString("IoTHub");
-    return DeviceProvisioningServiceClient.CreateFromConnectionString(connectionString);
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        Log.Warning("Azure IoT Hub connection string is not configured.");
+        return null!;
+    }
+    return ProvisioningServiceClient.CreateFromConnectionString(connectionString);
 });
 
-// JWT Authentication
+
+// 3. JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -57,14 +62,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!))
         };
     });
+builder.Services.AddAuthorization();
 
-// ML.NET Context
+
+// 4. ML.NET Context
 builder.Services.AddSingleton<MLContext>();
 
-// Register application services
+// 5. Application Services (Dependency Injection)
 builder.Services.AddScoped<IDeviceService, DeviceService>();
 builder.Services.AddScoped<IEnergyService, EnergyService>();
 builder.Services.AddScoped<IPredictiveMaintenanceService, PredictiveMaintenanceService>();
@@ -75,76 +82,84 @@ builder.Services.AddScoped<IEnergyOptimizationService, EnergyOptimizationService
 builder.Services.AddScoped<ISolarPanelService, SolarPanelService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-// Background services
+// 6. Background Services
 builder.Services.AddHostedService<EnergyMonitoringService>();
 builder.Services.AddHostedService<PredictiveMaintenanceBackgroundService>();
 builder.Services.AddHostedService<EnergyOptimizationBackgroundService>();
+builder.Services.AddHostedService<MqttService>(); // MqttService is now a background service
 
-// SignalR for real-time updates
+
+// 7. SignalR for real-time communication
 builder.Services.AddSignalR();
 
-// MQTT Server
-builder.Services.AddHostedMqttServer(mqttServerBuilder =>
-{
-    mqttServerBuilder.WithDefaultEndpointPort(1883)
-                    .WithDefaultEndpointBoundIPAddress(System.Net.IPAddress.Any);
-});
 
-// Controllers
+// 8. Controllers and API Endpoints
 builder.Services.AddControllers();
-
-// Learn more about configuring Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo 
-    { 
-        Title = "NexusHome IoT API", 
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "NexusHome IoT API",
         Version = "v2.0",
-        Description = "Smart Home Energy Management System with AI-powered IoT integration",
-        Contact = new OpenApiContact
+        Description = "A modern, AI-powered smart home energy management system.",
+        Contact = new OpenApiContact { Name = "NexusHome Support", Email = "support@nexushome.dev" }
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter a valid token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
         {
-            Name = "NexusHome Team",
-            Email = "support@nexushome.io"
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type=ReferenceType.SecurityScheme,
+                    Id="Bearer"
+                }
+            },
+            new string[]{}
         }
     });
-    
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey
-    });
 });
 
-// CORS
+
+// 9. CORS Policy
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
-// Health checks
+// 10. Health Checks
 builder.Services.AddHealthChecks()
-    .AddDbContext<NexusHomeDbContext>()
-    .AddUrlGroup(new Uri(builder.Configuration.GetConnectionString("IoTHub")), "iot-hub");
+    .AddDbContextCheck<NexusHomeDbContext>();
 
+
+// --- Application Pipeline Configuration ---
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "NexusHome IoT API v2.0");
-        c.RoutePrefix = string.Empty;
+        c.RoutePrefix = string.Empty; // Set Swagger UI at the app's root
     });
+    app.UseDeveloperExceptionPage();
 }
 
 app.UseHttpsRedirection();
@@ -155,26 +170,33 @@ app.UseAuthorization();
 
 app.UseRouting();
 
-// SignalR Hubs
+// Map SignalR Hubs
 app.MapHub<EnergyMonitoringHub>("/energyHub");
 app.MapHub<DeviceStatusHub>("/deviceHub");
 app.MapHub<NotificationHub>("/notificationHub");
 
 app.MapControllers();
 
-// Health check endpoint
+// Map Health Check endpoint
 app.MapHealthChecks("/health");
 
-// Initialize database
-using (var scope = app.Services.CreateScope())
+// --- Database Initialization ---
+try
 {
-    var context = scope.ServiceProvider.GetRequiredService<NexusHomeDbContext>();
-    context.Database.EnsureCreated();
+    Log.Information("Applying database migrations...");
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<NexusHomeDbContext>();
+        dbContext.Database.Migrate();
+    }
+    Log.Information("Database migrations applied successfully.");
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "An error occurred while migrating the database.");
+    return;
 }
 
-Log.Information("NexusHome IoT Smart Home Energy Management System starting up...");
 
+Log.Information("NexusHome IoT System is starting...");
 app.Run();
-
-// Ensure to flush and stop internal timers/threads before application-exit
-Log.CloseAndFlush();
